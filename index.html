@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChangelogMD — git log to weekly changelog</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--fg:#e6edf3;--muted:#8b949e;--green:#3fb950;--red:#f85149;--amber:#d29922;--accent:#7ee787}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;line-height:1.5;padding:22px}
+.wrap{max-width:1020px;margin:0 auto}
+h1{font-size:25px}h1 .c{color:var(--accent)}
+.tag{color:var(--muted);font-size:13.5px;margin-top:4px}
+code{background:#21262d;border-radius:4px;padding:1px 6px;font-size:12px}
+label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px}
+textarea{width:100%;height:220px;background:var(--card);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:12px;font:12.5px/1.55 ui-monospace,Consolas,monospace;resize:vertical}
+.row{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.row input{flex:1;min-width:160px;background:var(--card);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:8px 10px;font-size:13px}
+.btnrow{display:flex;gap:10px;margin-top:14px}
+button.primary{background:#238636;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--border);border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;margin-top:16px}
+.card .hd{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+pre{padding:16px;overflow:auto;font:12.5px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap}
+.hidden{display:none}
+footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
+footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Changelog<span class="c">MD</span></h1>
+<div class="tag">Paste <code>git log --oneline --shortstat</code> output → get a publish-ready weekly changelog in Markdown. Deterministic template ported from <a href="https://github.com/qianbrady/commit-chronicle" style="color:var(--accent)">commit-chronicle</a>. Offline.</div>
+
+<label style="margin-top:16px">git log output (--oneline --shortstat works best)</label>
+<textarea id="log" placeholder="a1b2c3d feat(parser): support nested quotes&#10; 2 files changed, 44 insertions(+), 3 deletions(-)&#10;e4f5g6h fix: escape HTML entities in preview&#10; 1 file changed, 9 insertions(+), 2 deletions(-)"></textarea>
+<div class="row">
+  <input id="repoUrl" placeholder="Repo URL for commit links (optional) e.g. https://github.com/you/repo">
+  <input id="repoName" placeholder="Repo name (optional)">
+</div>
+<div class="btnrow">
+  <button class="primary" onclick="run()">Generate changelog</button>
+  <button class="ghost" onclick="loadExample()">Load example</button>
+  <button class="ghost" onclick="copyOut()" id="cpBtn">Copy Markdown</button>
+</div>
+
+<div class="card hidden" id="outCard">
+  <div class="hd"><span id="meta"></span><span id="copyState"></span></div>
+  <pre id="out"></pre>
+</div>
+
+<footer>Same grouping rules &amp; template as commit-chronicle v1.x · © 2025 MIT</footer>
+</div>
+
+<script>
+"use strict";
+/* ---- ported from commit_chronicle/grouper.py ---- */
+const GROUP_ORDER=["feat","fix","docs","chore","refactor","other"];
+const GROUP_LABELS={feat:"本周亮点",fix:"修复清单",docs:"文档",chore:"杂务",refactor:"重构",other:"其他变更"};
+const PREFIX_RE=/^([a-z]+)(?:\(([^)]*)\))?:\s/;
+function classifySubject(subject){
+  const m=PREFIX_RE.exec(subject||"");
+  if(!m)return "other";
+  const kind=m[1].toLowerCase();
+  return kind in GROUP_LABELS?kind:"other";}
+function groupCommits(commits){
+  const g={};for(const k of GROUP_ORDER)g[k]=[];
+  for(const c of commits)g[classifySubject(c.subject)].push(c);
+  return g;}
+
+/* ---- parse pasted git log ---- */
+function parseLog(text){
+  const commits=[];let added=null,deleted=null;
+  const reHead=/^\s*([0-9a-f]{7,40})\s+(.+?)\s*$/;
+  const reStat=/(\d+)\s+files?\s+changed(?:,\s*(\d+)\s+insertions?\(\+\))?(?:,\s*(\d+)\s+deletions?\(-\))?/;
+  for(const raw of text.split(/\r?\n/)){
+    const hm=reHead.exec(raw);
+    if(hm){commits.push({hash:hm[1],subject:hm[2],added:0,deleted:0});continue;}
+    const sm=reStat.exec(raw);
+    if(sm&&commits.length){
+      const ins=parseInt(sm[2]||"0",10),del=parseInt(sm[3]||"0",10);
+      commits[commits.length-1].added+=ins;
+      commits[commits.length-1].deleted+=del;
+      added=(added||0)+ins;deleted=(deleted||0)+del;}}
+  return {commits,added:added||0,deleted:deleted||0};}
+
+/* ---- ported from commit_chronicle/template.py (labels kept) ---- */
+function isoWeek(d){
+  const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()+4-day);
+  const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+  const week=Math.ceil((((dt-yearStart)/86400000)+1)/7);
+  return [dt.getUTCFullYear(),week];}
+function fmt(d){return d.toISOString().slice(0,10);}
+function hashLink(shortHash,repoUrl){return repoUrl?("[`"+shortHash+"`]("+repoUrl.replace(/\/+$/,"")+"/commit/"+shortHash+")"):("`"+shortHash+"`");}
+function commitLine(c,ru){return "- "+hashLink(c.hash,ru)+" "+c.subject;}
+function defaultIntro(count,added,deleted,since,until){
+  return "过去一周（"+since+" ~ "+until+"）项目共 **"+count+"** 个提交（+"+added+" 行 / -"+deleted+" 行），亮点与修复如下。";}
+function renderWeekly(repoName,commits,sinceDate,untilDate,repoUrl){
+  const [isoYear,isoWk]=isoWeek(untilDate);
+  const groups=groupCommits(commits);
+  const count=commits.length;
+  const added=commits.reduce((s,c)=>s+c.added,0);
+  const deleted=commits.reduce((s,c)=>s+c.deleted,0);
+  const since=fmt(sinceDate),until=fmt(untilDate);
+  const intro=defaultIntro(count,added,deleted,since,until);
+  const lines=[
+    "# "+repoName+" 周记 "+isoYear+"-W"+String(isoWk).padStart(2,"0")+"（"+since+" ~ "+until+"）",
+    "",intro,""];
+  if(groups.feat.length){lines.push("## 本周亮点","");groups.feat.forEach(c=>lines.push(commitLine(c,repoUrl)));lines.push("");}
+  if(groups.fix.length){lines.push("## 修复清单","");groups.fix.forEach(c=>lines.push(commitLine(c,repoUrl)));lines.push("");}
+  const others=GROUP_ORDER.filter(k=>k!=="feat"&&k!=="fix"&&groups[k].length);
+  if(others.length){lines.push("## 其他变更","");
+    for(const k of others){lines.push("### "+GROUP_LABELS[k],"");groups[k].forEach(c=>lines.push(commitLine(c,repoUrl)));lines.push("");}}
+  lines.push("## 数字摘要","");
+  lines.push("本周共 **"+count+"** 个提交，新增 **+"+added+"** 行，删除 **-"+deleted+"** 行。","");
+  return lines.join("\n");}
+
+function run(){
+  const {commits}=parseLog(document.getElementById("log").value);
+  const card=document.getElementById("outCard"),out=document.getElementById("out"),meta=document.getElementById("meta");
+  card.classList.remove("hidden");
+  if(!commits.length){out.textContent=LANG_ZH?"没有解析到提交——每行应为「短哈希 + 提交说明」。":"No commits parsed — each line should be '<hash> <subject>'.";meta.textContent="";return;}
+  const today=new Date();
+  const since=new Date(today.getTime()-6*86400000);
+  const ru=document.getElementById("repoUrl").value.trim()||null;
+  let rn=document.getElementById("repoName").value.trim();
+  if(!rn)rn="this-week";
+  out.textContent=renderWeekly(rn,commits,since,today,ru);
+  meta.textContent=commits.length+" commit(s) · grouped by conventional-commit prefix";}
+function copyOut(){
+  const txt=document.getElementById("out").textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    document.getElementById("copyState").textContent="✓ copied";
+    setTimeout(()=>document.getElementById("copyState").textContent="",1500);});}
+let LANG_ZH=false;
+function loadExample(){
+  document.getElementById("log").value=[
+"a1b2c3d feat(parser): support nested quotes",
+" 2 files changed, 44 insertions(+), 3 deletions(-)",
+"e4f5g6h fix(cli): escape HTML entities in preview",
+" 1 file changed, 9 insertions(+), 2 deletions(-)",
+"99aa88b docs: rewrite quickstart",
+" 1 file changed, 30 insertions(+), 12 deletions(-)",
+"77cc66d chore: bump deps",
+" 3 files changed, 6 insertions(+), 6 deletions(-)",
+"55dd44e refactor(core): extract scorer",
+" 2 files changed, 51 insertions(+), 48 deletions(-)",
+"33ee22f wip half-done idea",
+" 1 file changed, 2 insertions(+)"].join("\n");
+  document.getElementById("repoName").value="my-project";run();}
+</script>
+</body>
+</html>
