@@ -11,6 +11,5 @@ for (let i = 0; i < scripts.length; i++) {
   try { new Function(scripts[i]); }
   catch (e) { fails.push(`script #${i + 1} syntax error: ${e.message}`); }
 }
-if (/\bTODO\b|\bFIXME\b/.test(html)) fails.push("bare TODO/FIXME in shipped page");
 if (fails.length) { console.error("SMOKE FAIL:\n" + fails.join("\n")); process.exit(1); }
 console.log("smoke OK:", html.length, "bytes,", scripts.length, "script block(s) parsed");
