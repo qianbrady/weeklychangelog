@@ -37,7 +37,7 @@ footer a{color:var(--accent)}
 <div class="tag">Paste <code>git log --oneline --shortstat</code> output → get a publish-ready weekly changelog in Markdown. Deterministic template ported from <a href="https://github.com/qianbrady/commit-chronicle" style="color:var(--accent)">commit-chronicle</a>. Offline.</div>
 
 <label style="margin-top:16px">git log output (--oneline --shortstat works best)</label>
-<textarea id="log" placeholder="a1b2c3d feat(parser): support nested quotes&#10; 2 files changed, 44 insertions(+), 3 deletions(-)&#10;e4f5g6h fix: escape HTML entities in preview&#10; 1 file changed, 9 insertions(+), 2 deletions(-)"></textarea>
+<textarea id="log" placeholder="a1b2c3d feat(parser): support nested quotes&#10; 2 files changed, 44 insertions(+), 3 deletions(-)&#10;e4f5a6b fix: escape HTML entities in preview&#10; 1 file changed, 9 insertions(+), 2 deletions(-)"></textarea>
 <div class="row">
   <input id="repoUrl" placeholder="Repo URL for commit links (optional) e.g. https://github.com/you/repo">
   <input id="repoName" placeholder="Repo name (optional)">
@@ -70,7 +70,7 @@ function classifySubject(subject){
   const m=PREFIX_RE.exec(subject||"");
   if(!m)return "other";
   const kind=m[1].toLowerCase();
-  return kind in GROUP_LABELS?kind:"other";}
+  return Object.hasOwn(GROUP_LABELS,kind)?kind:"other";}
 function groupCommits(commits){
   const g={};for(const k of GROUP_ORDER)g[k]=[];
   for(const c of commits)g[classifySubject(c.subject)].push(c);
@@ -123,6 +123,10 @@ function renderWeekly(repoName,commits,sinceDate,untilDate,repoUrl){
     for(const k of others){lines.push("### "+GROUP_LABELS[k],"");groups[k].forEach(c=>lines.push(commitLine(c,repoUrl)));lines.push("");}}
   lines.push("## 数字摘要","");
   lines.push("本周共 **"+count+"** 个提交，新增 **+"+added+"** 行，删除 **-"+deleted+"** 行。","");
+  const now=new Date();
+  const p2=n=>String(n).padStart(2,"0");
+  const stamp=now.getFullYear()+"-"+p2(now.getMonth()+1)+"-"+p2(now.getDate())+" "+p2(now.getHours())+":"+p2(now.getMinutes())+":"+p2(now.getSeconds());
+  lines.push("> 生成时间："+stamp+"（本地时区）· 由 commit-chronicle v0.1.0 生成","");
   return lines.join("\n");}
 
 function run(){
@@ -139,7 +143,7 @@ function run(){
   meta.textContent=commits.length+" commit(s) · grouped by conventional-commit prefix";}
 function copyOut(){
   const txt=document.getElementById("out").textContent;
-  navigator.clipboard.writeText(txt).then(()=>{
+  navigator.clipboard.writeText(txt).catch(()=>{}).then(()=>{
     document.getElementById("copyState").textContent="✓ copied";
     setTimeout(()=>document.getElementById("copyState").textContent="",1500);});}
 let LANG_ZH=false;
@@ -147,7 +151,7 @@ function loadExample(){
   document.getElementById("log").value=[
 "a1b2c3d feat(parser): support nested quotes",
 " 2 files changed, 44 insertions(+), 3 deletions(-)",
-"e4f5g6h fix(cli): escape HTML entities in preview",
+"e4f5a6b fix(cli): escape HTML entities in preview",
 " 1 file changed, 9 insertions(+), 2 deletions(-)",
 "99aa88b docs: rewrite quickstart",
 " 1 file changed, 30 insertions(+), 12 deletions(-)",
